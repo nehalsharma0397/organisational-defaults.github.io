@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organizational Defaults Inventory</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <style>
+        :root { --primary: #2c3e50; --accent: #3498db; --highlight: #f1c40f; --bg: #f4f7f6; }
+        body { font-family: 'Segoe UI', sans-serif; line-height: 1.6; background: var(--bg); color: #333; padding: 20px; }
+        .container { max-width: 850px; margin: auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .instructions { background: #eef2f7; padding: 15px; border-left: 5px solid var(--accent); margin-bottom: 30px; }
+        .section { margin-bottom: 40px; border-bottom: 1px solid #eee; padding-bottom: 20px; }
+        .section-title { font-weight: bold; font-size: 1.2em; color: var(--accent); margin-bottom: 15px; display: block; }
+        .options { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+        .option-label { font-size: 0.85em; display: flex; align-items: center; cursor: pointer; background: #fafafa; padding: 8px; border-radius: 4px; border: 1px solid #ddd; flex: 1; min-width: 100px; justify-content: center; }
+        input[type="radio"] { margin-right: 8px; }
+        .btn { border: none; padding: 15px 30px; border-radius: 5px; font-size: 1.1em; cursor: pointer; transition: 0.3s; width: 100%; margin-top: 10px; }
+        .btn-calc { background: var(--accent); color: white; }
+        .btn-pdf { background: #27ae60; color: white; margin-top: 20px; display: none; }
+        #results { margin-top: 40px; padding: 20px; border: 1px solid #ddd; border-radius: 8px; display: none; background: white; }
+        .result-card { border: 1px solid #eee; padding: 12px; margin-bottom: 8px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
+        .top-score { background: #fffde7; border: 2px solid var(--highlight); }
+        .badge { background: var(--highlight); color: #856404; padding: 2px 8px; border-radius: 12px; font-size: 0.75em; font-weight: bold; }
+        @media print { .btn, .instructions { display: none !important; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Organizational Defaults Inventory</h1>
+    
+    <div class="instructions">
+        <strong>How to fill:</strong> Circle the response that best matches the organization's actual behavior[cite: 19]. 
+        Lower scores indicate areas for deeper exploration[cite: 14].
+    </div>
+
+    <form id="inventoryForm">
+        <div id="questions-container"></div>
+        <button type="button" class="btn btn-calc" onclick="processResults()">Calculate Results</button>
+    </form>
+
+    <div id="results">
+        <div id="capture-area">
+            <h2 style="color: var(--primary);">Inventory Results Summary</h2>
+            <p>Scores are indicative of organizational preference and are meant to deepen insights[cite: 9].</p>
+            <div id="results-list"></div>
+        </div>
+        <button type="button" id="pdfBtn" class="btn btn-pdf" onclick="downloadPDF()">Download PDF Report</button>
+    </div>
+</div>
+
+<script>
+    const sections = [
+        { id: 1, name: "Competition Outlook", questions: ["Collaboration in non-crisis situations", "Cross-functional support", "Taking on 'white space' roles"], inverted: false },
+        { id: 2, name: "Control Orientation", questions: ["Stakeholder inclusion in decisions", "Role flexibility beyond KRAs", "Risk-taking for innovation"], inverted: false },
+        { id: 3, name: "Action Impulse", questions: ["Time to strategize/reflect", "Reviews focus on reflection", "Optimum number of initiatives"], inverted: false },
+        { id: 4, name: "Goal Soul Balance", questions: ["Relationships/Joy prioritized", "Internal vs External strategies", "Accountability without negativity"], inverted: false },
+        { id: 5, name: "Conflict Response", questions: ["Willingness for difficult conversations", "Conflict resolution mechanisms", "Day-to-day positive conflict handling"], inverted: false },
+        { id: 6, name: "Feedback Frame", questions: ["Coaching/Training for change", "Feedback leads to system change", "Commitment to behavioral change"], inverted: false },
+        { id: 7, name: "Feelings and Reason", questions: ["Redressing negative feelings", "Balancing feeling and reason", "Effective emotion management"], inverted: false },
+        { id: 8, name: "Status Quoist", questions: ["Regular process reviews", "Embracing new roles", "Adapting to change swiftly"], inverted: false },
+        { id: 9, name: "In Group Impulse", questions: ["Sense of belonging for all", "Proactive diversity of opinion", "Fair recognition/promotion"], inverted: false },
+        { id: 10, name: "Learning from Mistakes", questions: ["Perfectionism vs Discomfort", "Mistakes as lack of competence", "Protecting deliverables from errors"], inverted: true },
+        { id: 11, name: "Risk Response", questions: ["Deference to experts/leaders", "Heavy cost-benefit analysis", "Preference for tried and tested"], inverted: true }
+    ];
+
+    const labels = ["Always", "Mostly", "Sometimes", "Never"];
+
+    function renderQuestions() {
+        const container = document.getElementById('questions-container');
+        sections.forEach(sec => {
+            let html = `<div class="section"><span class="section-title">${sec.id}. ${sec.name}</span>`;
+            sec.questions.forEach((q, i) => {
+                html += `<div class="question"><p><strong>${String.fromCharCode(97 + i)}.</strong> ${q}</p><div class="options">`;
+                labels.forEach((label, index) => {
+                    let val = sec.inverted ? (index + 1) : (4 - index);
+                    html += `<label class="option-label"><input type="radio" name="s${sec.id}q${i}" value="${val}" required> ${label}</label>`;
+                });
+                html += `</div></div>`;
+            });
+            container.innerHTML += html + `</div>`;
+        });
+    }
+
+    function processResults() {
+        const form = document.getElementById('inventoryForm');
+        if (!form.checkValidity()) { alert("Please answer all questions."); return; }
+
+        const scores = sections.map(sec => {
+            let total = 0;
+            sec.questions.forEach((_, i) => {
+                total += parseInt(document.querySelector(`input[name="s${sec.id}q${i}"]:checked`).value);
+            });
+            return { name: sec.name, total: total };
+        });
+
+        const sorted = [...scores].sort((a, b) => b.total - a.total);
+        const top3Threshold = sorted[2].total;
+
+        const list = document.getElementById('results-list');
+        list.innerHTML = "";
+        scores.forEach(score => {
+            const isTop = score.total >= top3Threshold && sorted.slice(0,3).some(s => s.name === score.name);
+            list.innerHTML += `<div class="result-card ${isTop ? 'top-score' : ''}">
+                <span>${score.name} ${isTop ? '<span class="badge">TOP PRIORITY</span>' : ''}</span>
+                <strong>${score.total} / 12</strong></div>`;
+        });
+
+        document.getElementById('results').style.display = 'block';
+        document.getElementById('pdfBtn').style.display = 'block';
+        window.scrollTo({ top: document.getElementById('results').offsetTop, behavior: 'smooth' });
+    }
+
+    async function downloadPDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'mm', 'a4');
+        const element = document.getElementById('capture-area');
+        
+        const canvas = await html2canvas(element, { scale: 2 });
+        const imgData = canvas.toDataURL('image/png');
+        
+        const imgProps = doc.getImageProperties(imgData);
+        const pdfWidth = doc.internal.pageSize.getWidth() - 20;
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        
+        doc.addImage(imgData, 'PNG', 10, 10, pdfWidth, pdfHeight);
+        doc.save('Organizational-Defaults-Results.pdf');
+    }
+
+    renderQuestions();
+</script>
+</body>
+</html>
